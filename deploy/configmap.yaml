@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: syslog-forwarder
+data:
+  rsyslog.conf: |
+    # rsyslog configuration file
+
+    #### MODULES ####                                                       
+
+    # Provides UDP syslog reception
+    # for parameters see http://www.rsyslog.com/doc/imudp.html
+    module(load="imudp") # needs to be done just once
+    input(type="imudp" port="10514")
+
+    # Provides TCP syslog reception
+    # for parameters see http://www.rsyslog.com/doc/imtcp.html
+    module(load="imtcp") # needs to be done just once
+    input(type="imtcp" port="10514")
+
+    #### RULES ####
+    # Log everything to stdout
+    #*.* /proc/1/fd/1
+
+    # Forward to receiver                                         
+    *.* action(
+            type="omfwd"
+            target="172.30.163.168"
+            port="10514"
+            protocol="tcp"
+            rebindInterval="100"
+            action.resumeRetryCount="100"
+            queue.type="linkedList"
+            queue.size="10000")
+immutable: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: syslog-receiver
+data:
+  rsyslog.conf: |
+    # rsyslog configuration file
+    #
+    # Provides UDP syslog reception
+    # for parameters see http://www.rsyslog.com/doc/imudp.html
+    module(load="imudp") # needs to be done just once
+    input(type="imudp" port="10514")
+
+    # Provides TCP syslog reception
+    # for parameters see http://www.rsyslog.com/doc/imtcp.html
+    module(load="imtcp") # needs to be done just once
+    input(type="imtcp" port="10514")
+
+    #### RULES ####
+    # Log everything to stdout
+    *.* /dev/stdout
+immutable: false

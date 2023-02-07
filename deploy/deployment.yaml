@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: syslog-forwarder
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: syslog-forwarder
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: syslog-forwarder
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - syslog-forwarder
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - image: registry.redhat.io/rhel9/rsyslog:9.1
+        imagePullPolicy: Always
+        livenessProbe:
+          exec:
+            command:
+              - bash
+              - -c
+              - logger -p debug -n 127.0.0.1 -P 10514 -T "Liveness probe for syslog-forwarder"
+        name: rsyslog
+        ports:
+        - containerPort: 10514
+          name: syslog
+          protocol: UDP
+        readinessProbe:
+          exec:
+            command:
+              - bash
+              - -c
+              - logger -p debug -n 127.0.0.1 -P 10514 -T "Readiness probe for syslog-forwarder"
+        resources:
+          limits:
+            cpu: 512m
+            memory: 512Mi
+          requests:
+            cpu: 128m
+            memory: 128Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /etc/rsyslog.d
+          name: rsyslog
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: syslog-forwarder
+        name: rsyslog
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: syslog-receiver
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: syslog-receiver
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: syslog-receiver
+    spec:
+      containers:
+      - image: registry.redhat.io/rhel9/rsyslog:9.1
+        imagePullPolicy: Always
+        name: rsyslog
+        ports:
+        - containerPort: 10514
+          name: syslog-tcp
+          protocol: TCP
+        - containerPort: 10514
+          name: syslog-udp
+          protocol: UDP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /etc/rsyslog.d
+          name: syslog-receiver
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: syslog-receiver
+        name: syslog-receiver
